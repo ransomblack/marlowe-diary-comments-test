@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marlowe Rose | Private Comment Moderation Preview</title>
+<style>
+*{box-sizing:border-box}body{background:#241d1d;color:#f4e8df;font:16px/1.55 Georgia,serif;margin:0;padding:32px 16px}
+main{max-width:740px;margin:auto}h1{font-size:2rem}h2{font-size:1.3rem}
+label{display:block;margin:16px 0 5px}input,textarea{width:100%;padding:12px;background:#fffaf6;color:#241d1d;border:1px solid #9a777a;border-radius:5px;font:inherit}
+button{padding:10px 16px;background:#b68a8f;border:0;border-radius:5px;color:#1b1515;font-weight:bold;cursor:pointer;margin:10px 8px 0 0}
+button:disabled{opacity:.55}article{padding:18px 0;border-bottom:1px solid #635151}p{white-space:pre-wrap}.note{font:14px/1.5 sans-serif;color:#ddc7c7}
+[hidden]{display:none!important}.danger{background:#e8b4b4}.reply{margin-left:24px;padding:12px;border-left:3px solid #b68a8f}#message{min-height:24px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head><body><main>
+<p class="note">PRIVATE DEVELOPMENT PREVIEW — NOT ON MARLOWE'S PUBLIC WEBSITE</p>
+<h1>Marlowe Rose — Comment Moderation</h1>
+<p class="note">Sign in is restricted to contact@marlowerosemusic.com. Only the verified account can post official replies or delete comments.</p>
+<section id="login"><h2>Sign in</h2>
+<label for="email">Email</label><input id="email" type="email" value="contact@marlowerosemusic.com" readonly>
+<button id="send-code">Email a sign-in code</button>
+<label for="code">Six-digit code from email</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter email code">
+<button id="verify">Verify code</button>
+<p class="note">Email sign-in requires the administrator account to be provisioned in Supabase Auth and the email template to include an OTP code.</p>
+</section>
+<section id="dashboard" hidden><button id="sign-out">Sign out</button><h2>Reader comments</h2><div id="comments"></div></section>
+<p id="message" role="status" aria-live="polite"></p>
+</main>
+<script>
+const URL_BASE="https://tanpkisnsffagsxulqfy.supabase.co";
+const sb=window.supabase.createClient(URL_BASE,"sb_publishable_kG8WiXK6DN-hauVJLgtlww_3BLV7i7q",{auth:{persistSession:true,autoRefreshToken:true}});
+const ENTRY="/diary/2026-10-14-the-woman-behind-marlowe/";
+const LIST=URL_BASE+"/functions/v1/diary-comments-list";
+const ADMIN=URL_BASE+"/functions/v1/diary-comments-admin";
+const email="contact@marlowerosemusic.com";
+const $=id=>document.getElementById(id);
+const notice=s=>$("message").textContent=s;
+async function session(){
+ const {data:{user}}=await sb.auth.getUser();
+ const ok=user?.email?.toLowerCase()===email&&!!user.email_confirmed_at;
+ $("login").hidden=!!ok;$("dashboard").hidden=!ok;
+ if(ok)await load();
+}
+$("send-code").onclick=async()=>{
+ notice("Requesting sign-in code…");
+ const {error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
+ notice(error?"Unable to send code. The account may need setup in Supabase Auth.":"Check the contact mailbox for your sign-in email. Enter the six-digit code.");
+};
+$("verify").onclick=async()=>{
+ const {error}=await sb.auth.verifyOtp({email,token:$("code").value.trim(),type:"email"});
+ if(error){notice("That code was not accepted. "+error.message);return}
+ notice("Signed in.");await session();
+};
+$("sign-out").onclick=async()=>{await sb.auth.signOut();notice("Signed out.");await session()};
+async function adminAction(payload){
+ const {data:{session:current}}=await sb.auth.getSession();
+ if(!current)throw new Error("Sign in again");
+ const response=await fetch(ADMIN,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+current.access_token},body:JSON.stringify(payload)});
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(result.error||"Action failed");
+ return result;
+}
+async function load(){
+ const host=$("comments");host.replaceChildren();notice("Loading comments…");
+ try{
+  const response=await fetch(LIST+"?entry_id="+encodeURIComponent(ENTRY));
+  if(!response.ok)throw new Error("Could not load comments");
+  const {comments}=await response.json();
+  if(!comments.length){notice("No comments yet.");return}
+  notice(comments.length+" saved comment(s).");
+  const parents=comments.filter(c=>!c.parent_id);
+  for(const c of parents){
+   const article=document.createElement("article");
+   const heading=document.createElement("strong");heading.textContent=c.is_marlowe?"Marlowe Rose":c.author_name;
+   const date=document.createElement("span");date.className="note";date.textContent=" · "+new Date(c.created_at).toLocaleString();
+   const body=document.createElement("p");body.textContent=c.comment_text;
+   article.append(heading,date,body);
+   const remove=document.createElement("button");remove.className="danger";remove.textContent="Delete comment";
+   remove.onclick=async()=>{if(!confirm("Delete this comment and its replies?"))return;try{await adminAction({action:"delete",id:c.id});await load()}catch(e){notice(e.message)}};
+   article.append(remove);
+   if(!c.is_marlowe){
+    const textarea=document.createElement("textarea");textarea.rows=3;textarea.maxLength=2000;textarea.placeholder="Reply as Marlowe Rose…";textarea.setAttribute("aria-label","Reply to "+c.author_name);
+    const reply=document.createElement("button");reply.textContent="Post as Marlowe Rose";
+    reply.onclick=async()=>{if(!textarea.value.trim())return;reply.disabled=true;try{await adminAction({action:"reply",parent_id:c.id,comment_text:textarea.value});await load()}catch(e){notice(e.message);reply.disabled=false}};
+    article.append(textarea,reply);
+   }
+   for(const child of comments.filter(r=>r.parent_id===c.id)){
+    const box=document.createElement("div");box.className="reply";
+    const name=document.createElement("strong");name.textContent="Marlowe Rose";
+    const text=document.createElement("p");text.textContent=child.comment_text;
+    const del=document.createElement("button");del.className="danger";del.textContent="Delete reply";
+    del.onclick=async()=>{if(!confirm("Delete this reply?"))return;try{await adminAction({action:"delete",id:child.id});await load()}catch(e){notice(e.message)}};
+    box.append(name,text,del);article.append(box);
+   }
+   host.append(article);
+  }
+ }catch(e){notice(e.message)}
+}
+session();
+</script></body></html>
