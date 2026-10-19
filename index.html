@@ -27,7 +27,7 @@ button:disabled{opacity:.5;cursor:wait}.note{font:14px/1.5 sans-serif;color:#ddc
 <p id="status" role="status" aria-live="polite"></p>
 </form>
 <p class="note">This test form submits real comments to the Supabase test endpoint. Do not use it until the test hostname is approved in Cloudflare Turnstile.</p>
-</main>
+<section aria-labelledby="comments-title" style="margin-top:40px;border-top:1px solid #846e6c;padding-top:20px"><h2 id="comments-title">Reader comments</h2><p id="comments-loading" class="note">Loading comments…</p><div id="comments-list"></div></section></main>
 <script>
 const endpoint="https://tanpkisnsffagsxulqfy.supabase.co/functions/v1/diary-comment-submit";
 const entryId="/diary/2026-10-14-the-woman-behind-marlowe/";
@@ -43,11 +43,31 @@ document.getElementById("comment-form").addEventListener("submit",async event=>{
   const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entry_id:entryId,author_name:document.getElementById("author").value,comment_text:document.getElementById("comment").value,turnstile_token:token})});
   const result=await response.json();
   if(!response.ok)throw new Error(result.error||"Submission failed");
-  status.textContent="Comment submitted successfully.";
+  status.textContent="Comment submitted successfully.";await loadComments();
   document.getElementById("comment").value="";
  }catch(error){status.textContent=error.message||"Could not submit comment"}
  finally{button.disabled=false;token="";if(window.turnstile)window.turnstile.reset()}
 });
+const listEndpoint="https://tanpkisnsffagsxulqfy.supabase.co/functions/v1/diary-comments-list";
+async function loadComments(){
+ const list=document.getElementById("comments-list"),loading=document.getElementById("comments-loading");
+ try{
+  const response=await fetch(listEndpoint+"?entry_id="+encodeURIComponent(entryId));
+  if(!response.ok)throw new Error("Unable to load comments");
+  const result=await response.json();
+  list.replaceChildren();
+  loading.textContent=result.comments.length?"":"No comments yet. Be the first to leave one.";
+  for(const comment of result.comments){
+   const item=document.createElement("article");
+   item.style.cssText="padding:16px 0;border-bottom:1px solid #5d4c4c";
+   const name=document.createElement("strong");name.textContent=comment.is_marlowe?"Marlowe Rose":comment.author_name;
+   const date=document.createElement("span");date.className="note";date.textContent=" · "+new Date(comment.created_at).toLocaleDateString();
+   const message=document.createElement("p");message.style.whiteSpace="pre-wrap";message.textContent=comment.comment_text;
+   item.append(name,date,message);list.append(item);
+  }
+ }catch{loading.textContent="Comments could not be loaded right now."}
+}
+loadComments();
 </script>
 </body>
 </html>
