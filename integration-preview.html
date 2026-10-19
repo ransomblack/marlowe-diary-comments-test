@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Marlowe Diary — Layout Preview</title><style>body{margin:0;background:#e9ded3;color:#392c2a;font-family:Georgia,serif;line-height:1.7}.wrap{max-width:740px;margin:0 auto;padding:22px 18px 60px}.preview{font:13px Arial,sans-serif;background:#34242a;color:#fff;padding:12px;text-align:center}.paper{background:#f8f2e9;padding:clamp(18px,5vw,55px);box-shadow:0 5px 24px #35242020}h1{font-size:clamp(27px,5vw,45px);line-height:1.2}.eyebrow{font:12px Arial,sans-serif;letter-spacing:3px;text-transform:uppercase}button{font:inherit} .marlowe-comments{margin:2rem auto 1rem;padding:1.5rem 0;border-top:1px solid #c4aaa0;max-width:680px;color:#392c2a}.marlowe-comments h3{font-family:Georgia,serif;font-size:1.55rem;margin:0 0 .7rem}.marlowe-comments p{line-height:1.65}.marlowe-comment-list{margin:1.5rem 0}.marlowe-comment-item{border-bottom:1px solid #d9c8bd;padding:1rem 0;overflow-wrap:anywhere}.marlowe-comment-item p{white-space:pre-wrap;margin:.5rem 0}.marlowe-comment-reply{margin:1rem 0 0 1.25rem;padding:.6rem 0 .6rem 1rem;border-left:3px solid #96696f}.marlowe-comment-reply strong{color:#81525e}.marlowe-comment-date,.marlowe-comment-privacy{font-size:.85rem;opacity:.78}.marlowe-comment-form label{display:block;margin:1rem 0;font-weight:600}.marlowe-comment-form input,.marlowe-comment-form textarea{display:block;box-sizing:border-box;width:100%;margin-top:.4rem;padding:.8rem;border:1px solid #9b7c7c;border-radius:5px;background:#fffdfb;color:#302424;font:inherit}.marlowe-comment-form button{background:#68434d;color:#fff;border:0;border-radius:4px;padding:.8rem 1.4rem;cursor:pointer;font:inherit}.marlowe-comment-form button:disabled{opacity:.6}.marlowe-comment-status{min-height:1.4em}@media(max-width:600px){.marlowe-comments{padding:1.2rem .5rem}.marlowe-comment-reply{margin-left:.6rem;padding-left:.7rem}.marlowe-comment-form input,.marlowe-comment-form textarea{font-size:16px}}</style></head><body><div class="preview">ISOLATED LAYOUT PREVIEW — MARLOWE'S LIVE SITE IS UNCHANGED</div><main class="wrap"><article class="paper"><p class="eyebrow">FROM THE DIARY</p><h1>The Woman Behind Marlowe</h1><p>I've always had a loud mind and quiet words.</p><p>But being quiet has never meant there wasn't much happening inside.</p><p>Through music, I'm finding that freedom again—letting more of what I've kept inside become something I can share.</p><section class="marlowe-comments" data-entry-id="/diary/2026-10-14-the-woman-behind-marlowe/" aria-labelledby="marlowe-comments-heading">
+  <h3 id="marlowe-comments-heading">A note from you</h3>
+  <p>Every story feels a little different when someone reads it. I'd love to hear your thoughts.</p>
+  <div class="marlowe-comment-list" aria-live="polite">Loading comments…</div>
+  <form class="marlowe-comment-form">
+    <label>Your name <input name="author_name" maxlength="80" autocomplete="name" required></label>
+    <label>Your comment <textarea name="comment_text" maxlength="2000" rows="4" required></textarea></label>
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFb7GcWJoobb8HEs" data-callback="marloweCommentVerified" data-expired-callback="marloweCommentExpired"></div>
+    <button type="submit">Leave a comment</button>
+    <p class="marlowe-comment-status" role="status" aria-live="polite"></p>
+  </form>
+  <p class="marlowe-comment-privacy">Comments are public. Spam prevention uses Cloudflare Turnstile, subject to Cloudflare's privacy policy and terms. Please don't include private information.</p>
+</section>
+
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</article></main><script>(()=>{"use strict";
+const root=document.querySelector(".marlowe-comments");if(!root)return;
+const entryId=root.dataset.entryId,base="https://tanpkisnsffagsxulqfy.supabase.co/functions/v1/";
+const list=root.querySelector(".marlowe-comment-list"),form=root.querySelector("form"),status=root.querySelector(".marlowe-comment-status");
+let token="";
+window.marloweCommentVerified=value=>{token=value};
+window.marloweCommentExpired=()=>{token=""};
+const el=(tag,cls,txt)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(txt!==undefined)node.textContent=txt;return node};
+async function refresh(){
+ try{
+  const response=await fetch(base+"diary-comments-list?entry_id="+encodeURIComponent(entryId));
+  if(!response.ok)throw Error("Could not load comments");
+  const result=await response.json();list.replaceChildren();
+  const comments=Array.isArray(result.comments)?result.comments:[];
+  if(!comments.length){list.textContent="No comments yet. Be the first to leave one.";return}
+  for(const comment of comments.filter(c=>!c.parent_id)){
+   const item=el("article","marlowe-comment-item");
+   item.append(el("strong","",comment.is_marlowe?"Marlowe Rose":comment.author_name),el("span","marlowe-comment-date"," · "+new Date(comment.created_at).toLocaleDateString()),el("p","",comment.comment_text));
+   for(const reply of comments.filter(c=>c.parent_id===comment.id)){
+    const nested=el("div","marlowe-comment-reply");
+    nested.append(el("strong","",reply.is_marlowe?"Marlowe Rose":reply.author_name),el("p","",reply.comment_text));
+    item.append(nested);
+   }
+   list.append(item);
+  }
+ }catch{list.textContent="Comments are temporarily unavailable."}
+}
+form.addEventListener("submit",async event=>{
+ event.preventDefault();if(!token){status.textContent="Please complete the verification first.";return}
+ const button=form.querySelector("button");button.disabled=true;status.textContent="Posting…";
+ try{
+  const response=await fetch(base+"diary-comment-submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entry_id:entryId,author_name:form.elements.author_name.value,comment_text:form.elements.comment_text.value,turnstile_token:token})});
+  const data=await response.json();if(!response.ok)throw Error(data.error||"Could not post comment");
+  status.textContent="Your comment is published. Thank you!";form.elements.comment_text.value="";await refresh();
+ }catch(error){status.textContent=error.message||"Could not post comment"}
+ finally{button.disabled=false;token="";if(window.turnstile)window.turnstile.reset()}
+});
+refresh();
+})();</script></body></html>
