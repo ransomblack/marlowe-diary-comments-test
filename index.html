@@ -57,13 +57,25 @@ async function loadComments(){
   const result=await response.json();
   list.replaceChildren();
   loading.textContent=result.comments.length?"":"No comments yet. Be the first to leave one.";
-  for(const comment of result.comments){
+  for(const comment of result.comments.filter(c=>!c.parent_id)){
    const item=document.createElement("article");
    item.style.cssText="padding:16px 0;border-bottom:1px solid #5d4c4c";
    const name=document.createElement("strong");name.textContent=comment.is_marlowe?"Marlowe Rose":comment.author_name;
    const date=document.createElement("span");date.className="note";date.textContent=" · "+new Date(comment.created_at).toLocaleDateString();
    const message=document.createElement("p");message.style.whiteSpace="pre-wrap";message.textContent=comment.comment_text;
-   item.append(name,date,message);list.append(item);
+   item.append(name,date,message);
+   const replies=result.comments.filter(r=>r.parent_id===comment.id);
+   for(const reply of replies){
+    const nested=document.createElement("div");
+    nested.style.cssText="margin:12px 0 0 22px;padding:12px 14px;border-left:3px solid #b68a8f";
+    const replyName=document.createElement("strong");
+    replyName.textContent=reply.is_marlowe?"Marlowe Rose":reply.author_name;
+    const replyText=document.createElement("p");
+    replyText.textContent=reply.comment_text;
+    nested.append(replyName,replyText);
+    item.append(nested);
+   }
+   list.append(item);
   }
  }catch{loading.textContent="Comments could not be loaded right now."}
 }
